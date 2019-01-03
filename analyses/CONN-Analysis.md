@@ -55,6 +55,8 @@ Species Not Recently Collected
 
 ### By County
 
+![](CONN-Analysis_files/figure-markdown_github/Old_County-1.png)
+
 Session Information
 -------------------
 
@@ -78,26 +80,20 @@ Session Information
     [1] stats     graphics  grDevices utils     datasets  methods   base     
 
     other attached packages:
-     [1] ggmap_2.7.904   maps_3.3.0      bindrcpp_0.2.2  lubridate_1.7.4
-     [5] knitr_1.20      cowplot_0.9.3   forcats_0.3.0   stringr_1.3.1  
-     [9] dplyr_0.7.8     purrr_0.2.5     readr_1.1.1     tidyr_0.8.1    
-    [13] tibble_1.4.2    ggplot2_3.1.0   tidyverse_1.2.1
+     [1] bindrcpp_0.2.2  knitr_1.20      cowplot_0.9.3   forcats_0.3.0  
+     [5] stringr_1.3.1   dplyr_0.7.8     purrr_0.2.5     readr_1.1.1    
+     [9] tidyr_0.8.1     tibble_1.4.2    ggplot2_3.1.0   tidyverse_1.2.1
 
     loaded via a namespace (and not attached):
-     [1] tidyselect_0.2.5  haven_1.1.2       lattice_0.20-35  
-     [4] colorspace_1.3-2  htmltools_0.3.6   yaml_2.2.0       
-     [7] rlang_0.3.0.1     pillar_1.3.0      glue_1.3.0       
-    [10] withr_2.1.2       modelr_0.1.2      readxl_1.1.0     
-    [13] jpeg_0.1-8        bindr_0.1.1       plyr_1.8.4       
-    [16] munsell_0.5.0     gtable_0.2.0      cellranger_1.1.0 
-    [19] rvest_0.3.2       RgoogleMaps_1.4.3 evaluate_0.12    
-    [22] labeling_0.3      curl_3.2          highr_0.7        
-    [25] broom_0.5.0       Rcpp_1.0.0        scales_1.0.0     
-    [28] backports_1.1.2   jsonlite_1.5      rjson_0.2.20     
-    [31] png_0.1-7         hms_0.4.2         digest_0.6.18    
-    [34] stringi_1.2.4     grid_3.5.1        rprojroot_1.3-2  
-    [37] bitops_1.0-6      cli_1.0.1         tools_3.5.1      
-    [40] magrittr_1.5      lazyeval_0.2.1    crayon_1.3.4     
-    [43] pkgconfig_2.0.2   xml2_1.2.0        assertthat_0.2.0 
-    [46] rmarkdown_1.11    httr_1.3.1        rstudioapi_0.8   
-    [49] R6_2.3.0          nlme_3.1-137      compiler_3.5.1
+     [1] tidyselect_0.2.5 haven_1.1.2      lattice_0.20-35  colorspace_1.3-2
+     [5] htmltools_0.3.6  yaml_2.2.0       utf8_1.1.4       rlang_0.3.0.1   
+     [9] pillar_1.3.0     glue_1.3.0       withr_2.1.2      modelr_0.1.2    
+    [13] readxl_1.1.0     bindr_0.1.1      plyr_1.8.4       munsell_0.5.0   
+    [17] gtable_0.2.0     cellranger_1.1.0 rvest_0.3.2      codetools_0.2-15
+    [21] evaluate_0.12    fansi_0.4.0      highr_0.7        broom_0.5.0     
+    [25] Rcpp_1.0.0       scales_1.0.0     backports_1.1.2  jsonlite_1.5    
+    [29] hms_0.4.2        digest_0.6.18    stringi_1.2.4    grid_3.5.1      
+    [33] rprojroot_1.3-2  cli_1.0.1        tools_3.5.1      magrittr_1.5    
+    [37] lazyeval_0.2.1   crayon_1.3.4     pkgconfig_2.0.2  xml2_1.2.0      
+    [41] lubridate_1.7.4  assertthat_0.2.0 rmarkdown_1.11   httr_1.3.1      
+    [45] rstudioapi_0.8   R6_2.3.0         nlme_3.1-137     compiler_3.5.1
