@@ -1,0 +1,470 @@
+---
+title: "Analysis of CONN Collection"
+author: "James Mickley"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+graphics: yes
+output:
+  github_document:
+    toc: yes
+  html_document:
+    keep_md: yes
+    theme: readable
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include = F}
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# @@@@@ Knitr Options
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+# Set root directory to the project directory
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+
+
+# Set default knitr options: 
+# Suppress warnings and messages, cache chunks, 
+#  set default figure size to 6x8 at 300 dpi, and save a png and pdf
+knitr::opts_chunk$set(warning = F, message = F, collapse = T, cache = F,
+    fig.height = 6, fig.width = 8, dpi = 300, # 6x8" @ 300dpi:1800x2400=4.3MP
+    dev = c('png', 'pdf'), dev.args = list(pdf = list(onefile = F)))
+getwd()
+```
+
+
+
+## Overview
+
+What is this analysis about?
+
+**Note:** The locality-based portion of this analysis does not include location-restricted records, so rare species are likely underrepresented
+
+### Summary of Results
+* 
+
+```{r Main_Code, include = F, cache = F}
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# @@@@@ Setup - This code is run, but output is hidden
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+# Load Packages
+library(tidyverse) # Needed for data wrangling: dplyr, tidyr, ggplot2
+library(cowplot) # Needed for publication-quality ggplots
+library(knitr) # Needed to print tables with kable()
+library(lubridate) # Needed for date functions
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# @@@@@ Data Preparation
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+# Import datasets
+data <- read.csv("data/occurrences.csv")
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# @@@@@ ggPlot Theme
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+ggplot.theme <- theme(
+    
+    # Text size for axis ticks
+    axis.text.y = element_text(size = 14),
+    axis.text.x = element_text(size = 14),
+    
+    # Text size for axis labels
+    # Also move them away from the axes a bit for more space
+    axis.title.x = element_text(size = 18, face = "bold", vjust = -1),
+    axis.title.y = element_text(size = 18, face = "bold", vjust = 1.5),
+    
+    # Plot title size
+    plot.title = element_text(size = 20, face = "bold"),
+    
+    # Margins for top, right, bottom, left
+    plot.margin = grid::unit(c(1.5, 1.5, 1.5, 1.2), "lines"), 
+    
+    # Legend text size
+    legend.text = element_text(size = 14),
+    legend.text.align = 0, 
+    legend.title = element_text(size = 16, face = "bold"),
+    legend.key.size = grid::unit(1.4, "line"),
+    legend.key = element_blank()
+    )
+
+map.theme <- theme(
+    axis.text = element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_blank(),
+    panel.border = element_blank(),
+    axis.title = element_blank(),
+    panel.grid.major = element_line(colour = "transparent"), 
+    panel.grid.minor = element_line(colour = "transparent"), 
+    panel.background = element_rect(fill = "transparent", colour = NA)
+)
+
+
+```
+
+
+```{r Data_Wrangling, include = F}
+
+
+
+# Wrangle the data
+conn <- data %>% 
+    
+    # Restrict to only collections from the CONN herbarium
+    filter(collectionCode == "CONN") %>%
+    
+    # Remove genus level observations
+    filter(specificEpithet != "") %>%
+    
+    # Remove years that are zero
+    mutate(year = ifelse(year == 0, NA, year)) %>%
+    
+    # Make a date column from year, month day, 
+    # setting to 1/1 for dates missing month and day
+    mutate(date = ymd(ifelse(is.na(year), NA, 
+        paste(year, ifelse(is.na(month), 1, as.numeric(month)), 
+            ifelse(is.na(day), 1, as.numeric(day)), sep = "-"))))
+    
+
+# Calculate the date for which each species was last collected in CT
+ct.lastcollected <- conn %>% 
+    
+    # Remove dates without a year
+    filter(!is.na(year)) %>%
+    
+    # Group by species
+    group_by(scientificName) %>%
+    
+    # Count the number of observations of each species
+    mutate(observations = n()) %>%
+    
+    # Ungroup
+    ungroup() %>%
+
+    # Arrange by date in descending order
+    arrange(desc(date)) %>%
+
+    # Only keep the row for the most recent collection date for each species
+    distinct(scientificName, .keep_all = T) %>%
+    
+    # Select columns to keep
+    select(order, family, scientificName, genus, specificEpithet, taxonRank, 
+        infraspecificEpithet, lastcollected = year, lastdate = date) %>% 
+    
+    # Convert to dataframe
+    data.frame()
+
+
+# Calculate the date for which each species was last collected by county
+county.lastcollected <- conn %>% 
+    
+    # Remove records without a defined county
+    filter(county != "Middlesex/New Haven", county != "") %>%
+    
+    # Remove dates without a year
+    filter(!is.na(year)) %>%
+    
+    # Group by county and species species
+    group_by(county, scientificName) %>%
+    
+    # Count the number of observations of each species by county
+    mutate(observations = n()) %>%
+    
+    # Ungroup
+    ungroup() %>%
+
+    # Arrange by date in descending order
+    arrange(desc(date)) %>%
+
+    # Only keep the row for the most recent collection date for each species/county
+    distinct(county, scientificName, .keep_all = T) %>%
+    
+    # Select columns to keep
+    select(county, order, family, scientificName, genus, specificEpithet, taxonRank, 
+        infraspecificEpithet, lastcollected = year, lastdate = date) %>% 
+    
+    # Convert to dataframe
+    data.frame()
+
+
+# Cutoff for the number of years since a species was collected
+threshold = 50
+
+# Make a dataset of all the records belong to species that haven't been seen in 
+# the threshold number of years across the state
+ct.old.collections <- conn %>% 
+    
+    # Merge in last collected date
+    left_join(select(ct.lastcollected, scientificName, lastcollected), 
+        by = "scientificName") %>%
+    
+    # Filter to only records before the cutoff threshold # of years
+    filter(lastcollected < year(now()) - threshold)
+
+
+# Make a dataset of all the records belong to species that haven't been seen in 
+# the threshold number of years for each county
+county.old.collections <- conn %>% 
+    
+    # Merge in last collected date
+    left_join(select(county.lastcollected, county, scientificName, lastcollected), 
+        by = c("county", "scientificName")) %>%
+    
+    # Filter to only records before the cutoff threshold # of years
+    filter(lastcollected < year(now()) - threshold)
+
+
+
+```
+
+## Sampling
+
+### By County
+
+```{r Summary_Data, echo = F}
+
+
+# Compile a list of species for the state from CONN data
+ct.spplist <- conn %>% 
+    
+    # Group by species, keeping higher ranks
+    group_by(order, family, genus, scientificName) %>% 
+    
+    # Count the number of observations of each species
+    summarize(observations = n()) %>% 
+    
+    # Ungroup the dataset
+    ungroup() %>%
+    
+    # Merge in last collected date for the state
+    left_join(select(ct.lastcollected, scientificName, lastcollected), 
+        by = "scientificName") %>%
+    
+    # Arrange species from most to least common
+    arrange(desc(observations))
+
+
+# Compile a list of species by county from CONN data
+county.spplist <- conn %>% 
+    
+    # Group by county and species, keeping higher ranks
+    group_by(county, order, family, genus, scientificName) %>% 
+    
+    # Count the number of observations of each species by county
+    summarize(observations = n()) %>% 
+    
+    # Ungroup the dataset
+    ungroup() %>%
+    
+    # Merge in last collected date for each county
+    left_join(select(county.lastcollected, county, scientificName, 
+        lastcollected), by = c("county", "scientificName")) %>%
+    
+    # Arrange species from most to least common within each county
+    arrange(county, desc(observations))
+
+
+# Make a summary by county: families, species, and # observations
+county.spplist %>% 
+    
+    # Remove records without a defined county
+    filter(county != "Middlesex/New Haven", county != "") %>%
+    
+    # Group by both county and family
+    group_by(county, family) %>% 
+    
+    # Count up the number of species and observations by family for each county
+    summarize(species = n(), observations = sum(observations)) %>%
+    
+    # Group by county
+    group_by(county) %>%
+    
+    # Summarize families, species, and observations by county
+    summarize(families = n(), species = sum(species), 
+        observations = sum(observations)) %>% 
+    
+    # Output a table of the data
+    kable(format = "markdown")
+
+
+# Write out overall state species list
+write.csv(ct.spplist, "data/species-lists/ct-specieslist.csv", row.names = F)
+
+# Write out species lists for each county:
+
+# Fairfield County
+write.csv(county.spplist %>% filter(county == "Fairfield"),
+    "data/species-lists/fairfield-specieslist.csv", row.names = F)
+
+# Hartford County
+write.csv(county.spplist %>% filter(county == "Hartford"),
+    "data/species-lists/hartford-specieslist.csv", row.names = F)
+
+# Litchfield County
+write.csv(county.spplist %>% filter(county == "Litchfield"),
+    "data/species-lists/litchfield-specieslist.csv", row.names = F)
+
+# Middlesex County
+write.csv(county.spplist %>% filter(county == "Middlesex"),
+    "data/species-lists/middlesex-specieslist.csv", row.names = F)
+
+# New Haven County
+write.csv(county.spplist %>% filter(county == "New Haven"),
+    "data/species-lists/newhaven-specieslist.csv", row.names = F)
+
+# New London County
+write.csv(county.spplist %>% filter(county == "New London"),
+    "data/species-lists/newlondon-specieslist.csv", row.names = F)
+
+# Tolland County
+write.csv(county.spplist %>% filter(county == "Tolland"),
+    "data/species-lists/tolland-specieslist.csv", row.names = F)
+
+# Windham County
+write.csv(county.spplist %>% filter(county == "Windham"),
+    "data/species-lists/windham-specieslist.csv", row.names = F)
+
+
+
+```
+
+### By Taxonomic Order
+
+```{r Order_Sampling, echo = F, fig.width = 6, fig.height = 16}
+
+
+
+     
+ct.spplist %>% filter(order != "") %>%
+    
+    # Reverse the factor levels of order so that the graph starts with A
+    mutate(order = factor(order, levels = rev(levels(order)))) %>%
+
+    # Make a plot showing the spread of # of observations by order
+    ggplot(aes(x = order, y = observations)) +
+        
+        # Add points for each species
+        geom_jitter(alpha = 0.5, color = "tomato") +
+        
+        # Add transparent boxplot
+        geom_boxplot(alpha = 0) + 
+        
+        # Make the y-axis on a log scale, with the following tickmarks
+        scale_y_log10(position = "right") +
+        
+        # Flip the x and y axes for better readability
+        coord_flip() +
+        
+        # Add axis labels
+        ylab("Observations per Species by Order") + xlab("Order") + 
+        
+        # Black and white theme
+        theme_bw()
+
+
+
+
+```
+
+## Species Not Recently Collected
+
+### For The State
+
+```{r Old_State, echo = F, fig.width = 6, fig.height = 10}
+
+# 
+ct.old.species <- ct.old.collections %>% 
+
+    group_by(order, family, genus, scientificName, lastcollected) %>%
+    
+    summarize() %>% 
+    
+    ungroup()
+
+
+# 
+ct.old.species %>%
+
+    # Remove blank orders
+    filter(family != "") %>%
+    
+    
+    group_by(family) %>%
+    
+    summarize(species = n()) %>%
+    
+    filter(species > 4) %>%
+    
+    # Arrange orders by number of species not collected recently
+    arrange(species, family) %>%
+    
+    # Reorder the factor levels to reflect the order above
+    mutate(family = factor(family, unique(family))) %>% 
+
+    # Make a plot showing the number of species not collected recently by order
+    ggplot(aes(x = species, y = family)) +
+        
+        # Add scatterplot points
+        geom_point() + 
+        
+        # Add axis labels
+        xlab(paste("# Species Not Collected Since", year(now()) - threshold)) + 
+        ylab("Families With 5+ Species") + 
+        
+        # Black and white theme
+        theme_bw()
+
+
+
+
+```
+
+```{r Old_State_Map, echo = F}
+
+# Read in connecticut counties shapefile
+#ct.shp <- st_read("data/shapefiles/CTCounties/wgs84/countyct_37800_0000_2010_s100_census_1_shp_wgs84.shp")
+ct <- map_data("county", region = "connecticut")
+
+
+#ct.old.sf <- ct.old.collections %>% 
+#    filter(!is.na(decimalLongitude), !is.na(decimalLatitude)) %>%
+#    st_as_sf(coords = c("decimalLongitude", "decimalLatitude"), crs = 4326)
+
+library(ggmap)
+register_google(key = "AIzaSyC4ktT5QUVfEpHIUQCDQ2GN9_lzJm9M4FM")
+get_map(location = c(-72.7, 41.5), maptype = "hybrid", zoom = 8,
+    source = "google") %>% 
+    ggmap() + 
+        geom_polygon(data = ct, aes(x = long, y = lat, group = group), 
+        fill = NA, color = "blue") +
+        geom_point(data = ct.old.collections, 
+                   aes(x = decimalLongitude, y = decimalLatitude), 
+                    color = "red", size = 2, alpha = 0.3) +
+        xlim(-73.8, -71.7) + ylim(41, 42.05) + # Zoom in
+        map.theme
+
+
+```
+
+
+### By County
+
+```{r Old_County, echo = F}
+
+```
+
+
+
+## Session Information
+
+```{r Session_Info, echo = F, comment = ""}
+
+# Add session information to help with reproduceability
+sessionInfo()
+
+
+```
+
+
