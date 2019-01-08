@@ -35,9 +35,11 @@ getwd()
 
 ## Overview
 
-What is this analysis about?
+A quick analysis of the CONN collection, based on data from the [NEHerbaria Portal](http://neherbaria.org/).  I pulled all of the records from CT (205,000), of which 70,000 were from CONN.  
 
-**Note:** The locality-based portion of this analysis does not include location-restricted records, so rare species are likely underrepresented
+For now, restricting the data to CONN, though this could be run on the full dataset as well.
+
+**Note:** The locality-based portion of this analysis does not include location-restricted records, so rare species are likely underrepresented. I don't have this data.
 
 ### Summary of Results
 * 
@@ -53,6 +55,11 @@ library(tidyverse) # Needed for data wrangling: dplyr, tidyr, ggplot2
 library(cowplot) # Needed for publication-quality ggplots
 library(knitr) # Needed to print tables with kable()
 library(lubridate) # Needed for date functions
+library(ggmap) # Needed for google maps
+library(sf)
+
+# Register James's Google API key for making google maps with ggmap
+register_google(key = "AIzaSyC4ktT5QUVfEpHIUQCDQ2GN9_lzJm9M4FM")
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # @@@@@ Data Preparation
@@ -90,16 +97,30 @@ ggplot.theme <- theme(
     legend.key = element_blank()
     )
 
-map.theme <- theme(
-    axis.text = element_blank(),
-    axis.line = element_blank(),
-    axis.ticks = element_blank(),
-    panel.border = element_blank(),
-    axis.title = element_blank(),
-    panel.grid.major = element_line(colour = "transparent"), 
-    panel.grid.minor = element_line(colour = "transparent"), 
-    panel.background = element_rect(fill = "transparent", colour = NA)
-)
+# Read in connecticut counties shapefile
+ct.shp <- st_read("data/shapefiles/CTCounties/wgs84/countyct_37800_0000_2010_s100_census_1_shp_wgs84.shp")
+
+# Construct a google map of connecticut to use as a base
+ct.gmap <- qmap(location = "Connecticut", zoom = 8, maptype = "hybrid") +
+    
+    # Add connecticut counties
+    geom_sf(data = ct.shp, inherit.aes = FALSE, fill = NA, color = "blue",
+        size = 1) + 
+    
+    # Set a bounding box
+    xlim(-73.8, -71.7) + ylim(40.95, 42.05) + 
+    
+    # Adjust the map theme
+    theme(
+        axis.text = element_blank(),
+        axis.line = element_blank(),
+        axis.ticks = element_blank(),
+        panel.border = element_blank(),
+        axis.title = element_blank(),
+        panel.grid.major = element_line(colour = "transparent"), 
+        panel.grid.minor = element_line(colour = "transparent"), 
+        panel.background = element_rect(fill = "transparent", colour = NA)
+    )
 
 
 ```
@@ -109,13 +130,13 @@ map.theme <- theme(
 
 
 
-# Wrangle the data
+# Wrangle the main dataset, restricting to CONN, and cleaning it up
 conn <- data %>% 
     
     # Restrict to only collections from the CONN herbarium
     filter(collectionCode == "CONN") %>%
     
-    # Remove genus level observations
+    # Remove genus level specimens
     filter(specificEpithet != "") %>%
     
     # Remove years that are zero
@@ -137,8 +158,8 @@ ct.lastcollected <- conn %>%
     # Group by species
     group_by(scientificName) %>%
     
-    # Count the number of observations of each species
-    mutate(observations = n()) %>%
+    # Count the number of specimens of each species
+    mutate(specimens = n()) %>%
     
     # Ungroup
     ungroup() %>%
@@ -169,8 +190,8 @@ county.lastcollected <- conn %>%
     # Group by county and species species
     group_by(county, scientificName) %>%
     
-    # Count the number of observations of each species by county
-    mutate(observations = n()) %>%
+    # Count the number of specimens of each species by county
+    mutate(specimens = n()) %>%
     
     # Ungroup
     ungroup() %>%
@@ -192,8 +213,8 @@ county.lastcollected <- conn %>%
 # Cutoff for the number of years since a species was collected
 threshold = 50
 
-# Make a dataset of all the records belong to species that haven't been seen in 
-# the threshold number of years across the state
+# Make a dataset of all the records belonging to species that haven't been 
+# seen in the threshold number of years across the state
 ct.old.collections <- conn %>% 
     
     # Merge in last collected date
@@ -204,26 +225,35 @@ ct.old.collections <- conn %>%
     filter(lastcollected < year(now()) - threshold)
 
 
-# Make a dataset of all the records belong to species that haven't been seen in 
-# the threshold number of years for each county
+# Write data out to csv
+write.csv(ct.old.collections, "data/old-collections/ct-specimens.csv",
+    row.names = F)
+
+
+# Make a dataset of all the records belonging to species that haven't been 
+# seen in the threshold number of years for each county
 county.old.collections <- conn %>% 
     
     # Merge in last collected date
-    left_join(select(county.lastcollected, county, scientificName, lastcollected), 
+    left_join(select(county.lastcollected, county, scientificName, lastcollected),
         by = c("county", "scientificName")) %>%
     
     # Filter to only records before the cutoff threshold # of years
     filter(lastcollected < year(now()) - threshold)
 
+# Write data out to csv
+write.csv(county.old.collections, "data/old-collections/county-specimens.csv",
+    row.names = F)
 
 
 ```
 
+
+
+
 ## Sampling
 
-### By County
-
-```{r Summary_Data, echo = F}
+```{r Species_Lists, include = F}
 
 
 # Compile a list of species for the state from CONN data
@@ -232,8 +262,8 @@ ct.spplist <- conn %>%
     # Group by species, keeping higher ranks
     group_by(order, family, genus, scientificName) %>% 
     
-    # Count the number of observations of each species
-    summarize(observations = n()) %>% 
+    # Count the number of specimens of each species
+    summarize(specimens = n()) %>% 
     
     # Ungroup the dataset
     ungroup() %>%
@@ -243,7 +273,7 @@ ct.spplist <- conn %>%
         by = "scientificName") %>%
     
     # Arrange species from most to least common
-    arrange(desc(observations))
+    arrange(desc(specimens))
 
 
 # Compile a list of species by county from CONN data
@@ -252,8 +282,8 @@ county.spplist <- conn %>%
     # Group by county and species, keeping higher ranks
     group_by(county, order, family, genus, scientificName) %>% 
     
-    # Count the number of observations of each species by county
-    summarize(observations = n()) %>% 
+    # Count the number of specimens of each species by county
+    summarize(specimens = n()) %>% 
     
     # Ungroup the dataset
     ungroup() %>%
@@ -263,30 +293,7 @@ county.spplist <- conn %>%
         lastcollected), by = c("county", "scientificName")) %>%
     
     # Arrange species from most to least common within each county
-    arrange(county, desc(observations))
-
-
-# Make a summary by county: families, species, and # observations
-county.spplist %>% 
-    
-    # Remove records without a defined county
-    filter(county != "Middlesex/New Haven", county != "") %>%
-    
-    # Group by both county and family
-    group_by(county, family) %>% 
-    
-    # Count up the number of species and observations by family for each county
-    summarize(species = n(), observations = sum(observations)) %>%
-    
-    # Group by county
-    group_by(county) %>%
-    
-    # Summarize families, species, and observations by county
-    summarize(families = n(), species = sum(species), 
-        observations = sum(observations)) %>% 
-    
-    # Output a table of the data
-    kable(format = "markdown")
+    arrange(county, desc(specimens))
 
 
 # Write out overall state species list
@@ -330,23 +337,144 @@ write.csv(county.spplist %>% filter(county == "Windham"),
 
 ```
 
+
+### Statewide
+
+```{r State_List, echo = F}
+
+# Make a summary by county: families, species, and # specimens
+ct.spplist %>% 
+    
+    # Group by both county and family
+    group_by(family) %>% 
+    
+    # Count up the number of species and specimens by family for each county
+    summarize(species = n(), specimens = sum(specimens)) %>%
+    
+    # Summarize # of families, species, specimens for CT
+    summarize(families = n(), species = sum(species), 
+        specimens = sum(specimens)) %>%
+    
+    # Output a table of the data
+    kable(format = "markdown")
+
+```
+
+A statewide species list, with # of specimens per species and last collected year is available at [ct-specieslist.csv](data/species-lists/ct-specieslist.csv).
+
+The northeast corner of the state (Windham County), nothern New London County, and the southern half of Litchfield County look more sparsely sampled.
+
+```{r State_Timeline, echo = F}
+
+# Plot a histogram of specimens across time
+ggplot(conn, aes(x = year)) + 
+    
+    # Add histogram with 1 bin per year
+    geom_histogram(bins = 200, fill = "blue") + 
+    
+    # Set x axis limits (200 years)
+    xlim(1820, 2020) + 
+    
+    # Add a title
+    ggtitle("Sampling by Year")
+
+```
+
+
+```{r State_Map, echo = F}
+
+# Plot all the records with location information on a google map
+ct.gmap + 
+    
+    # Add points for each record
+    geom_point(data = conn, aes(x = decimalLongitude, y = decimalLatitude), 
+        color = "red", size = 1.2, alpha = 0.3) + 
+    
+    # Add title
+    ggtitle("All CONN Records")
+
+```
+
+
+
+### By County
+
+Windham and Middlesex counties stand out as having less sampling, both across time and overall. They were largely ignored prior to 1970. Litchfield, New London and Fairfield, and Tolland have been comparatively well sampled recently, slightly less so for New Haven.
+
+County level species lists, with # of specimens and last collected year for that county are available in [species-lists](data/species-lists/).
+
+
+```{r County_List, echo = F}
+
+# Make a summary by county: families, species, and # specimens
+county.spplist %>% 
+    
+    # Remove records without a defined county
+    filter(county != "Middlesex/New Haven", county != "") %>%
+    
+    # Group by both county and family
+    group_by(county, family) %>% 
+    
+    # Count up the number of species and specimens by family for each county
+    summarize(species = n(), specimens = sum(specimens)) %>%
+    
+    # Group by county
+    group_by(county) %>%
+    
+    # Summarize families, species, and specimens by county
+    summarize(families = n(), species = sum(species), 
+        specimens = sum(specimens)) %>% 
+    
+    # Output a table of the data
+    kable(format = "markdown")
+
+
+```
+
+```{r County_Timeline, echo = F}
+
+# Plot a histogram of specimens across time
+conn %>% 
+    
+    # Remove records without a defined county
+    filter(county != "Middlesex/New Haven", county != "") %>%
+    
+    # Make plot
+    ggplot(aes(x = year)) + 
+    
+        # Make a separate graph facet for each county
+        facet_wrap(~ county) + 
+    
+        # Add histogram with 1 bin per year
+        geom_histogram(bins = 200, fill = "blue") + 
+        
+        # Set x axis limits
+        xlim(1820, 2020) + 
+        
+        # Add a title
+        ggtitle("Sampling by Year") + 
+    
+        ggplot.theme
+
+```
+
+
 ### By Taxonomic Order
 
+Less useful than I thought, leaving it up just in case.  The undersampled species are widely distributed taxonomically I guess.
+
 ```{r Order_Sampling, echo = F, fig.width = 6, fig.height = 16}
-
-
-
      
 ct.spplist %>% filter(order != "") %>%
     
     # Reverse the factor levels of order so that the graph starts with A
     mutate(order = factor(order, levels = rev(levels(order)))) %>%
 
-    # Make a plot showing the spread of # of observations by order
-    ggplot(aes(x = order, y = observations)) +
+    # Make a plot showing the spread of # of specimens by order
+    ggplot(aes(x = order, y = specimens)) +
         
         # Add points for each species
-        geom_jitter(alpha = 0.5, color = "tomato") +
+        geom_jitter(width = 0.1, height = 0, alpha = 0.5, color = "tomato") +
         
         # Add transparent boxplot
         geom_boxplot(alpha = 0) + 
@@ -358,44 +486,129 @@ ct.spplist %>% filter(order != "") %>%
         coord_flip() +
         
         # Add axis labels
-        ylab("Observations per Species by Order") + xlab("Order") + 
+        ylab("specimens per Species by Order") + xlab("Order") + 
         
         # Black and white theme
         theme_bw()
 
+```
 
+## Undersampled Species
+
+One way to get at data-deficient species, is to look at the number of species with very few records.
+
+Of the 4600 species recorded, more than half have less than 10 specimens statewide, and over 1000 species are only represented by one observation. These would be a good target, though it's possible some are outdated names or something of that sort.
+
+Notably though, most of the undersampled species were collected recently. There are pockets of undersampled species that haven't been collected recently in the CT River Valley, New London, and the NW corner that might be worth looking into.
+
+```{r Undersampled_Species, echo = F}
+
+# Filter to only include species with 10 or fewer specimens
+ct.spplist %>% filter(specimens <= 10) %>% 
+    
+    # Group by the number of specimens
+    group_by(specimens) %>% 
+    
+    # Summarize the number of species with a certain number of specimens
+    summarize(species = n()) %>% 
+    
+    # Reorder and rename columns
+    select(species, num.specimens = specimens) %>%
+    
+    # Output a table of the data
+    kable(format = "markdown")
 
 
 ```
 
-## Species Not Recently Collected
+
+```{r Undersampled_Map, echo = F}
+
+# Make a dataframe of all species records that belong to an undersampled species
+undersampled <- ct.spplist %>% filter(specimens <= 10) %>% 
+    
+    # Join the records in conn (with lat/long)
+    inner_join(conn, by = "scientificName") 
+
+
+# Map the undersampled species    
+ct.gmap + 
+    
+    # Add points for each record
+    geom_point(data = undersampled, 
+        aes(x = decimalLongitude, y = decimalLatitude, color = lastcollected), 
+        size = 2, alpha = 1) + 
+        
+    # Color by a rainbow gradient
+    scale_color_gradientn(name = "Last Collected", colors = rainbow(6)) + 
+    
+    # Add title
+    ggtitle("Undersampled Species")
+    
+```
+
+
+## Number of Species Not Collected in 50 Years
+
+A second way of looking for data-deficient species is finding species that haven't been collected in a while. These species could be extinct in CT (especially for prairie species), but they could also be difficult to identify (Poales), rare, or infrequently collected.
+
+I set the threshold at 50 years or 1969.
 
 ### For The State
+
+```{r, Old_Species, echo = F}
+
+# Summarize the total number of species for each family
+families <- ct.spplist %>% group_by(family) %>% 
+    summarize(total = n())
+
+# Summarize the # of species not recently collected by family
+ct.old.species <- ct.old.collections %>% 
+
+    # Group by scientific name, keeping other columns
+    group_by(order, family, genus, scientificName, lastcollected) %>%
+    
+    # Summarize to one row per species
+    summarize() %>% 
+    
+    # Remove the grouping
+    ungroup() %>%
+
+    # Remove blank families
+    filter(family != "") %>%
+    
+    # Group by family
+    group_by(family) %>%
+    
+    # Count the number of species in each family not recently collected
+    summarize(species = n()) %>%
+    
+    # Add the total number of species per family
+    inner_join(families, by = "family") %>%
+    
+    # Calculate the proportion of species in a family not recently collected
+    mutate(proportion = 1 - (species/total))
+    
+    
+```
+
+For all of CT, the families with the most of these sorts of species are plotted below.  Poaceae and Cyperaceae are well-represented, but there is also a lot of missing diversity in common families: Asteraceae, Rosaceae, Brassicaceae, Lamiaceae, Fabaceae, etc.
+
+Another way to look at this is by looking at the proportion of species in the family that haven't been collected recently. This gives a different set of families. Both would make good collecting targets.
+
+
+A static map of where these species are is below. Many were collected in New London, Storrs, and the CT River Valley.
+
+Or there's an [interactive map](http://mickley.github.io/CT-Herbarium-Specimens/analyses/CT-Old-Map.html) that lets you zoom in to particular areas and see which species were collected there.
+
 
 ```{r Old_State, echo = F, fig.width = 6, fig.height = 10}
 
 # 
-ct.old.species <- ct.old.collections %>% 
-
-    group_by(order, family, genus, scientificName, lastcollected) %>%
-    
-    summarize() %>% 
-    
-    ungroup()
-
-
-# 
 ct.old.species %>%
-
-    # Remove blank orders
-    filter(family != "") %>%
     
-    
-    group_by(family) %>%
-    
-    summarize(species = n()) %>%
-    
-    filter(species > 4) %>%
+    # Restrict to families with 5 or more species not recently collected
+    filter(species >= 5) %>%
     
     # Arrange orders by number of species not collected recently
     arrange(species, family) %>%
@@ -410,48 +623,73 @@ ct.old.species %>%
         geom_point() + 
         
         # Add axis labels
-        xlab(paste("# Species Not Collected Since", year(now()) - threshold)) + 
+        xlab("# Species Not Collected Since 1969") + 
         ylab("Families With 5+ Species") + 
         
         # Black and white theme
         theme_bw()
 
 
+```
+
+
+
+```{r, Old_State_Prop, echo = F}
+
+# Graph the proporion of species in each family that have not been 
+# collected recently
+ct.old.species %>%
+    
+    # Filter to families with more than 5 species, with less than 60% recent
+    filter(total >= 5, proportion < 0.6) %>% 
+    
+    # Arrange by descending proportion
+    arrange(desc(proportion)) %>% 
+    
+    # Reorder the factor levels to reflect the order above
+    mutate(family = factor(family, unique(family))) %>% 
+    
+    # Plot
+    ggplot(aes(x = proportion, y = family)) +
+        
+        # Add scatterplot points
+        geom_point() + 
+        
+        # Add axis labels
+        xlab("Proportion of Species Collected Since 1969") + 
+        ylab("Families With 5 + Species") + 
+        
+        # Black and white theme
+        theme_bw() + ggplot.theme
 
 
 ```
+
+
 
 ```{r Old_State_Map, echo = F}
 
-# Read in connecticut counties shapefile
-#ct.shp <- st_read("data/shapefiles/CTCounties/wgs84/countyct_37800_0000_2010_s100_census_1_shp_wgs84.shp")
-ct <- map_data("county", region = "connecticut")
-
-
-#ct.old.sf <- ct.old.collections %>% 
-#    filter(!is.na(decimalLongitude), !is.na(decimalLatitude)) %>%
-#    st_as_sf(coords = c("decimalLongitude", "decimalLatitude"), crs = 4326)
-
-library(ggmap)
-register_google(key = "AIzaSyC4ktT5QUVfEpHIUQCDQ2GN9_lzJm9M4FM")
-get_map(location = c(-72.7, 41.5), maptype = "hybrid", zoom = 8,
-    source = "google") %>% 
-    ggmap() + 
-        geom_polygon(data = ct, aes(x = long, y = lat, group = group), 
-        fill = NA, color = "blue") +
-        geom_point(data = ct.old.collections, 
-                   aes(x = decimalLongitude, y = decimalLatitude), 
-                    color = "red", size = 2, alpha = 0.3) +
-        xlim(-73.8, -71.7) + ylim(41, 42.05) + # Zoom in
-        map.theme
+# Map the species 
+ct.gmap + 
+    
+    # Add points for reach record
+    geom_point(data = ct.old.collections, 
+        aes(x = decimalLongitude, y = decimalLatitude), 
+        color = "red", size = 2, alpha = 0.3) + 
+    
+    # Color by a rainbow gradient
+    scale_color_gradientn(name = "Last Collected", colors = rainbow(6)) + 
+    
+    # Add title
+    ggtitle("Species Not Collected Since 1969")
 
 
 ```
 
 
-### By County
 
-```{r Old_County, echo = F}
+
+```{r Old_County, echo = F, eval = F}
 
 
 
