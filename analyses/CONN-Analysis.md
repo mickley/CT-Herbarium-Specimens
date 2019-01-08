@@ -36,7 +36,7 @@ Sampling
 |---------:|--------:|----------:|
 |       314|     4612|      70337|
 
-A statewide species list, with \# of specimens per species and last collected year is available at [ct-specieslist.csv](data/species-lists/ct-specieslist.csv).
+A statewide species list, with \# of specimens per species and last collected year is available at [ct-specieslist.csv](/data/species-lists/ct-specieslist.csv).
 
 The northeast corner of the state (Windham County), nothern New London County, and the southern half of Litchfield County look more sparsely sampled.
 
@@ -48,7 +48,7 @@ The northeast corner of the state (Windham County), nothern New London County, a
 
 Windham and Middlesex counties stand out as having less sampling, both across time and overall. They were largely ignored prior to 1970. Litchfield, New London and Fairfield, and Tolland have been comparatively well sampled recently, slightly less so for New Haven.
 
-County level species lists, with \# of specimens and last collected year for that county are available in [species-lists](data/species-lists/).
+County level species lists, with \# of specimens and last collected year for that county are available in [species-lists](/data/species-lists/).
 
 | county     |  families|  species|  specimens|
 |:-----------|---------:|--------:|----------:|
