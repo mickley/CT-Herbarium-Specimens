@@ -1,11 +1,5 @@
-# Analysis Title
-Analysis Description
+# CONN Herbarium Analysis
+This is a quick exploratory analysis to understand sampling in the CONN herbarium. 
 
-#### Instructions:
-* Data files should be stored inside the [data](data/) directory.
-* Analyses should be stored in the [analyses](analyses/) directory.
-* Use the [analysis template](analyses/Analysis-Template.Rmd) in analyses/ as a starting point.
-
-#### List of Analyses:
-* [First analysis](analyses/Analysis-One.md)
-* [Second analysis](analyses/Analysis-Two.md)
+* [CONN Analysis](analyses/CONN-Analysis.md)
+* View the [interactive map](http://mickley.github.io/CT-Herbarium-Specimens/analyses/CT-Old-Map.html)
